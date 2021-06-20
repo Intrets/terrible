@@ -29,6 +29,7 @@ struct Expanded_M
 struct Expanded_M
 {
 	float float_member = 1.0f;
-	inline static int __tr2float_member = LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<Expanded_M, float, &Expanded_M::float_member>("Expanded_M", "float_member");
+	inline static int __tr2float_member = 
+		LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<Expanded_M, float, &Expanded_M::float_member>("Expanded_M", "float_member");
 };
 ```
