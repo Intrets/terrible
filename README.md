@@ -5,7 +5,7 @@ Mark a member to (de)serialize with `TERRIBLE_M` or `TERRIBLE_M2`.
 
 `terrible::write(stream, obj);` and `terrible::read(stream, obj);` to (de)serialize objects.
 
-Vectors, arrays, strings, integers and floats already defined how to (de)serialize.
+`std::vector`, `std::array`, `std::string`, integers and floats already defined how to (de)serialize.
 
 Look at main.cpp for example.
 
