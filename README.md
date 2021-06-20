@@ -9,7 +9,7 @@ Mark a member to (de)serialize with `TERRIBLE_M` or `TERRIBLE_M2`.
 
 Look at main.cpp for example.
 
-Expanded macros: 
+Expanded macros to show the beautiful little nuggets: 
 ```cpp
 /*
 struct Expanded_M2
