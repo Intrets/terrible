@@ -1,5 +1,5 @@
 # What is this
-Terrible.
+Terrible. It leaves little nuggets of member functions (with `TERRIBLE_M2`) or static member variables (with `TERRIBLE_M`) around your objects to register things for (de)serialization.
 
 Mark a member to (de)serialize with `TERRIBLE_M` or `TERRIBLE_M2`.
 
