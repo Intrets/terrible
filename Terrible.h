@@ -15,7 +15,7 @@
 #define TERRIBLE_STR(s) #s
 #define TERRIBLE_M(type, member, ...) \
 	type member __VA_ARGS__;\
-	inline static int __tr2##member = LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<TR_NAME, type, &TR_NAME::member>(TERRIBLE_XSTR(TR_NAME), #member);
+	inline static int __tr2##member = LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<TR_NAME, decltype(member), &TR_NAME::member>(TERRIBLE_XSTR(TR_NAME), #member);
 
 #define TERRIBLE_M2(type, member, ...) \
 	type member __VA_ARGS__;\
