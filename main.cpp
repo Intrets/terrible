@@ -3,58 +3,63 @@
 #include <cassert>
 #include <sstream>
 
-#define TR_NAME InnerStruct
-struct InnerStruct
-{
-	TERRIBLE_M2(float, float_member, = 1.0f);
-	TERRIBLE_M2(std::string, this_is_ridiculous, = "do not use this");
+void absert(bool b) {
+	assert(b);
+	if (!b) {
+		std::abort();
+	}
+}
 
-	bool operator==(InnerStruct const& other) const = default;
+#define TR_NAME Struct2
+struct Struct2
+{
+	TERRIBLE_M(float, float_member, = 1.0f);
+	TERRIBLE_M(std::string, string, = "string");
 };
 
-#define TR_NAME OuterStruct
-struct OuterStruct
+struct Struct1
 {
 	TERRIBLE_M2(int, int_member1);
 	TERRIBLE_M2(int, int_member2);
-	TERRIBLE_M2(std::vector<InnerStruct>, vec_inner_member);
-	TERRIBLE_M2(TR_(std::array<int, 5>), array_member, { 1,2,3,4,5 });
+	TERRIBLE_M2(std::vector<Struct2>, vec_structs);
+	TERRIBLE_M2(TR_(std::array<int, 5>), array, { 1,2,3,4,5 });
 
-	bool operator==(OuterStruct const& other) const = default;
+	std::string string_member = "don't serialize this";
 };
 
 int main() {
-	terrible::registerType<std::array<int, 5>>();
-	terrible::registerType<int>();
-	[[maybe_unused]]
-	auto wat = LazyGlobal<terrible::impl::SerializationRegistration>->getRecords();
-
-	OuterStruct obj;
+	Struct1 obj;
 
 	obj.int_member1 = 123;
 	obj.int_member2 = -123;
-	obj.vec_inner_member.push_back({ 70.0f });
-	obj.vec_inner_member.push_back({ 71.0f });
-	obj.vec_inner_member.push_back({ 72.0f });
-	obj.vec_inner_member.back().this_is_ridiculous = "no really";
-	obj.array_member[2] = 0;
+	obj.vec_structs.push_back({ 70.0f });
+	obj.vec_structs.push_back({ 71.0f });
+	obj.vec_structs.push_back({ 72.0f });
+	obj.vec_structs.back().string = "different string";
+	obj.array[2] = 0;
+	obj.string_member = "pp";
 
 	std::stringstream stream;
 
 	auto writeSuccess = terrible::write(stream, obj);
+	absert(writeSuccess);
 
-	OuterStruct obj2;
-
-	assert(obj != obj2);
+	Struct1 obj2;
 
 	auto readSuccess = terrible::read(stream, obj2);
-	auto success = obj == obj2;
+	absert(readSuccess);
 
-	assert(obj == obj2);
+	absert(obj2.int_member1 == obj.int_member1);
+	absert(obj2.int_member2 == obj.int_member2);
+	absert(obj2.vec_structs[0].float_member == obj.vec_structs[0].float_member);
+	absert(obj2.vec_structs[1].float_member == obj.vec_structs[1].float_member);
+	absert(obj2.vec_structs[2].float_member == obj.vec_structs[2].float_member);
+	absert(obj2.vec_structs[2].string == obj.vec_structs[2].string);
+	absert(obj2.array[2] == obj.array[2]);
 
-	std::cout << stream.str();
+	absert(obj2.string_member != obj.string_member);
 
-	rand();
+	std::cout << "great success!";
 
 	return 0;
 }

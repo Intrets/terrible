@@ -7,13 +7,22 @@
 #include <optional>
 #include <concepts>
 #include <array>
+#include <mutex>
 
 #include "LazyGlobal.h"
 
-#define TERRIBLE_XSTR(s) STR(s)
+#define TERRIBLE_XSTR(s) TERRIBLE_STR(s)
 #define TERRIBLE_STR(s) #s
-#define TERRIBLE_M(type, member, ...) type member __VA_ARGS__; inline static int ___tr2##member = LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<TR_NAME, type, &TR_NAME::member>(TERRIBLE_XSTR(TR_NAME), #member);
-#define TERRIBLE_M2(type, member, ...) type member __VA_ARGS__; void __tr3##member() { using ThisType = std::remove_pointer_t<decltype(this)>; [[maybe_unused]] auto i = terrible::impl::RegisterStatic<ThisType, decltype(member), &ThisType::member>::val; };
+#define TERRIBLE_M(type, member, ...) \
+	type member __VA_ARGS__;\
+	inline static int __tr2##member = LazyGlobal<terrible::impl::SerializationRegistration>->registerMember<TR_NAME, type, &TR_NAME::member>(TERRIBLE_XSTR(TR_NAME), #member);
+
+#define TERRIBLE_M2(type, member, ...) \
+	type member __VA_ARGS__;\
+	void __tr3##member() {\
+		using ThisType = std::remove_pointer_t<decltype(this)>;\
+		terrible::impl::RegisterStatic<ThisType, decltype(member), &ThisType::member>::val;\
+	};
 
 #define TR_(...) __VA_ARGS__
 
@@ -21,34 +30,63 @@ namespace terrible
 {
 	namespace impl
 	{
+		struct StructInformation;
+
+		static bool writeString(std::ostream& out, std::string& str) {
+			out << str.size() << " ";
+			out.write(str.data(), str.size());
+			return out.good();
+		};
+
+		static bool readString(std::istream& in, std::string& str) {
+			size_t size;
+			in >> size;
+			in.get();
+			str.resize(size);
+			in.read(str.data(), str.size());
+			return in.good();
+		};
+
 		struct MemberInfo
 		{
-			//std::string name;
+			std::string memberName;
 			int32_t type;
-			//StructInformation2* next = nullptr;
+			StructInformation* typeStruct = nullptr;
 
 			void* (*get)(void*) = nullptr;
 		};
 
 		struct SerializationRegistration;
 
-		struct StructInformation2
+		struct StructInformation
 		{
-			//std::string name;
+			std::optional<std::string> structName;
 			int32_t type = -1;
 			std::vector<MemberInfo> members;
 
-			bool (*write)(StructInformation2*, std::ostream&, void*);
-			bool (*read)(StructInformation2*, std::istream&, void*);
+			bool (*write)(StructInformation*, std::ostream&, void*);
+			bool (*read)(StructInformation*, std::istream&, void*);
 
 			bool runWrite(std::ostream& out, void* val) {
+				out << "\n";
+				if (this->structName.has_value()) {
+					writeString(out, this->structName.value());
+				}
+				else {
+					std::string empty = "";
+					writeString(out, empty);
+				}
+
 				return this->write(this, out, val);
 			};
 			bool runRead(std::istream& in, void* val) {
+				std::string drain;
+				readString(in, drain);
+
 				return this->read(this, in, val);
 			};
 
-			StructInformation2();
+			StructInformation();
 		};
 
 		struct TypeIndexCounter
@@ -67,62 +105,77 @@ namespace terrible
 
 		struct SerializationRegistration
 		{
-			std::unordered_map<int32_t, StructInformation2> records;
+			std::unordered_map<int32_t, StructInformation> records;
 
-			StructInformation2 currentStruct;
-
-			void cycle(std::optional<int32_t> type = std::nullopt) {
-				if (this->currentStruct.type != -1) {
-					if (!type.has_value() || this->currentStruct.type != type.value()) {
-						this->records[this->currentStruct.type] = this->currentStruct;
-						this->currentStruct = {};
-					}
-				}
-			}
+			StructInformation currentStruct;
 
 			template<class Struct, class Member, auto memberPointer>
 			int registerMember(
-				std::string_view structName,
+				std::optional<std::string_view> structName,
 				std::string_view memberName
 			) {
-				this->cycle(LazyGlobal<TypeIndex<Struct>>->val);
-				//this->currentStruct.name = structName;
-				this->currentStruct.type = LazyGlobal<TypeIndex<Struct>>->val;
+				auto type = LazyGlobal<TypeIndex<Struct>>->val;
+				this->records.try_emplace(type);
+
 				MemberInfo member;
+				member.memberName = memberName;
 				member.type = LazyGlobal<TypeIndex<Member>>->val;
 				member.get = [](void* obj) {
 					return reinterpret_cast<void*>(&(reinterpret_cast<Struct*>(obj)->*memberPointer));
 				};
 
-				this->currentStruct.members.push_back(member);
+				this->records[type].members.push_back(member);
+				this->records[type].structName = structName;
 
 				registerType<Member>();
 				return 0;
 			}
 
-			std::unordered_map<int32_t, StructInformation2>& getRecords() {
-				this->cycle();
+			std::unordered_map<int32_t, StructInformation>& getRecords() {
 				return this->records;
 			}
+
+			template<class T>
+			bool contains() {
+				return this->records.contains(LazyGlobal<TypeIndex<T>>->val);
+			}
 		};
+
+		template<class T>
+		bool write(std::ostream& out, T& val) {
+			return LazyGlobal<terrible::impl::SerializationRegistration>->records[LazyGlobal<terrible::impl::TypeIndex<T>>->val].runWrite(out, &val);
+		}
+
+		template<class T>
+		bool read(std::istream& in, T& val) {
+			return LazyGlobal<terrible::impl::SerializationRegistration>->records[LazyGlobal<terrible::impl::TypeIndex<T>>->val].runRead(in, &val);
+		}
+
+		void fillPointers();
 	}
+
 
 	template<class T>
 	bool write(std::ostream& out, T& val) {
-		return LazyGlobal<terrible::impl::SerializationRegistration>->records[LazyGlobal<terrible::impl::TypeIndex<T>>->val].runWrite(out, &val);
+		terrible::impl::fillPointers();
+		return impl::write(out, val);
 	}
 
 	template<class T>
 	bool read(std::istream& in, T& val) {
-		return LazyGlobal<terrible::impl::SerializationRegistration>->records[LazyGlobal<terrible::impl::TypeIndex<T>>->val].runRead(in, &val);
+		terrible::impl::fillPointers();
+		return impl::read(in, val);
 	}
+
+	template<class T>
+	void registerType();
 
 	namespace impl
 	{
 		template<class Struct, class Member, auto memberPointer>
 		struct RegisterStatic
 		{
-			inline static int val = LazyGlobal<SerializationRegistration>->registerMember<Struct, Member, memberPointer>("NestedMadness", "madness3");
+			inline static int val = LazyGlobal<SerializationRegistration>->registerMember<Struct, Member, memberPointer>(std::nullopt, "##NoMemberName");
 		};
 
 		template<class T>
@@ -133,23 +186,27 @@ namespace terrible
 		{
 			static void run() {
 				using T = std::string;
-				StructInformation2 info;
-				info.write = [](StructInformation2* self, std::ostream& out, void* val) {
+
+				StructInformation info;
+				info.structName = "String";
+				info.type = LazyGlobal<TypeIndex<T>>->val;
+
+				info.write = [](StructInformation* self, std::ostream& out, void* val) {
 					T& str = *reinterpret_cast<T*>(val);
 					out << str.size() << " ";
 					out.write(str.data(), str.size());
 					return out.good();
 				};
-				info.read = [](StructInformation2* self, std::istream& in, void* val) {
+
+				info.read = [](StructInformation* self, std::istream& in, void* val) {
 					size_t size;
 					in >> size;
-					in >> std::ws;
+					in.get();
 					T& str = *reinterpret_cast<T*>(val);
 					str.resize(size);
 					in.read(str.data(), str.size());
 					return in.good();
 				};
-				info.type = LazyGlobal<TypeIndex<T>>->val;
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
 			}
@@ -160,16 +217,23 @@ namespace terrible
 			struct RegisterType<T>
 		{
 			static void run() {
-				StructInformation2 info;
-				info.write = [](StructInformation2* self, std::ostream& out, void* val) {
+				StructInformation info;
+				if constexpr (std::integral<T>) {
+					info.structName = "integer";
+				}
+				else {
+					info.structName = "float";
+				}
+				info.type = LazyGlobal<TypeIndex<T>>->val;
+
+				info.write = [](StructInformation* self, std::ostream& out, void* val) {
 					out << *reinterpret_cast<T*>(val) << " ";
 					return out.good();
 				};
-				info.read = [](StructInformation2* self, std::istream& in, void* val) {
+				info.read = [](StructInformation* self, std::istream& in, void* val) {
 					in >> *reinterpret_cast<T*>(val);
 					return in.good();
 				};
-				info.type = LazyGlobal<TypeIndex<T>>->val;
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
 			}
@@ -180,30 +244,43 @@ namespace terrible
 		{
 			static void run() {
 				using T = std::vector<E>;
-				StructInformation2 info;
-				info.write = [](StructInformation2* self, std::ostream& out, void* val_) {
+
+				StructInformation info;
+				info.structName = "vector";
+				info.type = LazyGlobal<TypeIndex<T>>->val;
+
+				MemberInfo valueMember;
+				valueMember.type = LazyGlobal<TypeIndex<E>>->val;
+				info.members.push_back(valueMember);
+
+				info.write = [](StructInformation* self, std::ostream& out, void* val_) {
 					T& val = *reinterpret_cast<T*>(val_);
+					auto typeStruct = self->members.front().typeStruct;
 
 					out << val.size() << " ";
 					for (auto& v : val) {
-						terrible::write(out, v);
+						typeStruct->runWrite(out, &v);
 					}
 					return out.good();
 				};
-				info.read = [](StructInformation2* self, std::istream& in, void* val_) {
+
+				info.read = [](StructInformation* self, std::istream& in, void* val_) {
 					T& val = *reinterpret_cast<T*>(val_);
+					auto typeStruct = self->members.front().typeStruct;
+
 					size_t s;
 					in >> s;
 
 					val.resize(s);
 					for (auto& v : val) {
-						terrible::read(in, v);
+						typeStruct->runRead(in, &v);
 					}
 					return in.good();
 				};
-				info.type = LazyGlobal<TypeIndex<T>>->val;
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
+
+				terrible::registerType<E>();
 			}
 		};
 
@@ -212,18 +289,29 @@ namespace terrible
 		{
 			static void run() {
 				using T = std::array<E, N>;
-				StructInformation2 info;
-				info.write = [](StructInformation2* self, std::ostream& out, void* val_) {
+
+				StructInformation info;
+				info.type = LazyGlobal<TypeIndex<T>>->val;
+
+				MemberInfo valueMember;
+				valueMember.type = LazyGlobal<TypeIndex<E>>->val;
+				info.members.push_back(valueMember);
+
+				info.write = [](StructInformation* self, std::ostream& out, void* val_) {
 					T& val = *reinterpret_cast<T*>(val_);
+					auto typeStruct = self->members.front().typeStruct;
 
 					out << val.size() << " ";
 					for (auto& v : val) {
-						terrible::write(out, v);
+						typeStruct->runWrite(out, &v);
 					}
 					return out.good();
 				};
-				info.read = [](StructInformation2* self, std::istream& in, void* val_) {
+
+				info.read = [](StructInformation* self, std::istream& in, void* val_) {
 					T& val = *reinterpret_cast<T*>(val_);
+					auto typeStruct = self->members.front().typeStruct;
+
 					size_t s;
 					in >> s;
 
@@ -232,21 +320,26 @@ namespace terrible
 					}
 
 					for (auto& v : val) {
-						terrible::read(in, v);
+						typeStruct->runRead(in, &v);
 					}
 					return in.good();
 				};
-				info.type = LazyGlobal<TypeIndex<T>>->val;
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
 			}
-
 		};
 	}
 
 	template<class T>
+	requires requires () { impl::RegisterType<T>::run(); }
 	void registerType() {
-		impl::RegisterType<T>::run();
+		if (!LazyGlobal<impl::SerializationRegistration>->contains<T>()) {
+			impl::RegisterType<T>::run();
+		}
+	}
+
+	template<class T>
+	void registerType() {
 	}
 }
 

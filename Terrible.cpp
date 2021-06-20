@@ -2,26 +2,37 @@
 
 namespace terrible::impl
 {
-	StructInformation2::StructInformation2() {
-		this->write = [](StructInformation2* self, std::ostream& out, void* ptr) {
-			//out << self->name << "\n";
+	std::once_flag once;
 
+	void processStruct(StructInformation& structInfo) {
+		for (auto& member : structInfo.members) {
+			auto& s = LazyGlobal<SerializationRegistration>->records[member.type];
+			member.typeStruct = &s;
+		}
+	}
+
+	void fillPointers() {
+		std::call_once(once, []() {
+			for (auto& [k, v] : LazyGlobal<SerializationRegistration>->records) {
+				processStruct(v);
+			}
+			});
+	}
+
+
+	StructInformation::StructInformation() {
+		this->write = [](StructInformation* self, std::ostream& out, void* ptr) {
 			for (auto& member : self->members) {
-				auto& selfNext = LazyGlobal<SerializationRegistration>->records[member.type];
-				if (!selfNext.runWrite(out, member.get(ptr))) {
+				if (!member.typeStruct->runWrite(out, member.get(ptr))) {
 					return false;
 				}
 			}
 			return out.good();
 		};
 
-		this->read = [](StructInformation2* self, std::istream& in, void* ptr) {
-			//std::string name;
-			//in >> name;
-
+		this->read = [](StructInformation* self, std::istream& in, void* ptr) {
 			for (auto& member : self->members) {
-				auto& selfNext = LazyGlobal<SerializationRegistration>->records[member.type];
-				if (!selfNext.runRead(in, member.get(ptr))) {
+				if (!member.typeStruct->runRead(in, member.get(ptr))) {
 					return false;
 				}
 			}
