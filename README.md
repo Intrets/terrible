@@ -1,4 +1,4 @@
-Loo at main.cpp.
+Look at main.cpp.
 
 Expanded macros: 
 ```cpp
