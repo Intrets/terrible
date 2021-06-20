@@ -12,7 +12,7 @@ Expanded macros:
 /*
 struct Expanded_M2
 {
-    TERRIBLE_M2(TR_(std::array<int, 5>, array, { 1,2,3,4,5 });
+    TERRIBLE_M2(TR_(std::array<int, 5>), array, { 1,2,3,4,5 });
 };
 */
 
