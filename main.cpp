@@ -10,6 +10,7 @@ void absert(bool b) {
 	}
 }
 
+// TR_NAME needs to match the declaration of the struct for TERRIBLE_M, not needed for TERRIBLE_M2
 #define TR_NAME Struct2
 struct Struct2
 {
