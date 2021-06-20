@@ -27,7 +27,7 @@ namespace terrible::impl
 					return false;
 				}
 			}
-			return out.good();
+			return true;
 		};
 
 		this->read = [](StructInformation* self, std::istream& in, void* ptr) {
@@ -36,7 +36,7 @@ namespace terrible::impl
 					return false;
 				}
 			}
-			return in.good();
+			return true;
 		};
 	}
 }

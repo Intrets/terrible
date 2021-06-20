@@ -70,18 +70,19 @@ namespace terrible
 			bool runWrite(std::ostream& out, void* val) {
 				out << "\n";
 				if (this->structName.has_value()) {
-					writeString(out, this->structName.value());
+					if (!writeString(out, this->structName.value())) return false;
 				}
 				else {
 					std::string empty = "";
-					writeString(out, empty);
+					if (!writeString(out, empty)) return false;
 				}
 
 				return this->write(this, out, val);
 			};
+
 			bool runRead(std::istream& in, void* val) {
 				std::string drain;
-				readString(in, drain);
+				if (!readString(in, drain)) return false;
 
 				return this->read(this, in, val);
 			};
@@ -259,9 +260,10 @@ namespace terrible
 
 					out << val.size() << " ";
 					for (auto& v : val) {
-						typeStruct->runWrite(out, &v);
+						if (!typeStruct->runWrite(out, &v)) return false;
 					}
-					return out.good();
+
+					return true;
 				};
 
 				info.read = [](StructInformation* self, std::istream& in, void* val_) {
@@ -273,9 +275,10 @@ namespace terrible
 
 					val.resize(s);
 					for (auto& v : val) {
-						typeStruct->runRead(in, &v);
+						if (!typeStruct->runRead(in, &v)) return false;
 					}
-					return in.good();
+
+					return true;
 				};
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
@@ -303,9 +306,10 @@ namespace terrible
 
 					out << val.size() << " ";
 					for (auto& v : val) {
-						typeStruct->runWrite(out, &v);
+						if (!typeStruct->runWrite(out, &v)) return false;
 					}
-					return out.good();
+
+					return true;
 				};
 
 				info.read = [](StructInformation* self, std::istream& in, void* val_) {
@@ -320,9 +324,10 @@ namespace terrible
 					}
 
 					for (auto& v : val) {
-						typeStruct->runRead(in, &v);
+						if (!typeStruct->runRead(in, &v)) return false;
 					}
-					return in.good();
+
+					return true;
 				};
 
 				LazyGlobal<SerializationRegistration>->records[info.type] = info;
