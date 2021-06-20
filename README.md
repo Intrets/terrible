@@ -1,3 +1,6 @@
+Loo at main.cpp.
+
+Expanded macros: 
 ```cpp
 /*
 struct Expanded_M2
