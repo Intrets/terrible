@@ -18,7 +18,6 @@ struct Expanded_M2
 
 struct Expanded_M2
 {
-    // TERRIBLE_M2(TR_(std::array<int, 5>), array, { 1,2,3,4,5 });
     std::array<int, 5> array{ 1,2,3,4,5 };
     void __tr3array() {
         using ThisType = std::remove_pointer_t<decltype(this)>;
